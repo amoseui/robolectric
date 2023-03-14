@@ -38,10 +38,17 @@ import org.robolectric.util.reflector.ForType;
 public class ShadowCameraManager {
   @RealObject private CameraManager realObject;
 
+  private static class TorchInfo {
+    boolean enabled = false;
+    int strengthLevel = 1;
+    int strengthDefaultLevel = 1;
+    int strengthMaxLevel = 1;
+  }
+
   // LinkedHashMap used to ensure getCameraIdList returns ids in the order in which they were added
   private final Map<String, CameraCharacteristics> cameraIdToCharacteristics =
       new LinkedHashMap<>();
-  private final Map<String, Boolean> cameraTorches = new HashMap<>();
+  private final Map<String, TorchInfo> cameraTorches = new HashMap<>();
   private final Set<CameraManager.AvailabilityCallback> registeredCallbacks = new HashSet<>();
   // Most recent camera device opened with openCamera
   private CameraDevice lastDevice;
@@ -74,7 +81,30 @@ public class ShadowCameraManager {
   protected void setTorchMode(@NonNull String cameraId, boolean enabled) {
     Preconditions.checkNotNull(cameraId);
     Preconditions.checkArgument(cameraIdToCharacteristics.keySet().contains(cameraId));
-    cameraTorches.put(cameraId, enabled);
+    TorchInfo torchInfo = cameraTorches.get(cameraId);
+    torchInfo.enabled = enabled;
+    if (!enabled) {
+      torchInfo.strengthLevel = torchInfo.strengthDefaultLevel;
+    }
+  }
+
+  @Implementation(minSdk = VERSION_CODES.TIRAMISU)
+  protected void turnOnTorchWithStrengthLevel(@NonNull String cameraId, int torchStrength) {
+    Preconditions.checkNotNull(cameraId);
+    Preconditions.checkArgument(cameraIdToCharacteristics.keySet().contains(cameraId));
+
+    TorchInfo torchInfo = cameraTorches.get(cameraId);
+    Preconditions.checkArgument(torchStrength > 0 && torchStrength <= torchInfo.strengthMaxLevel);
+
+    cameraTorches.get(cameraId).enabled = true;
+    cameraTorches.get(cameraId).strengthLevel = torchStrength;
+  }
+
+  @Implementation(minSdk = VERSION_CODES.TIRAMISU)
+  protected int getTorchStrengthLevel(@NonNull String cameraId) {
+    Preconditions.checkNotNull(cameraId);
+    Preconditions.checkArgument(cameraIdToCharacteristics.keySet().contains(cameraId));
+    return cameraTorches.get(cameraId).strengthLevel;
   }
 
   @Implementation(minSdk = Build.VERSION_CODES.S)
@@ -237,6 +267,8 @@ public class ShadowCameraManager {
 
     cameraIdToCharacteristics.put(cameraId, characteristics);
     triggerOnCameraAvailable(cameraId);
+
+    cameraTorches.put(cameraId, new TorchInfo());
   }
 
   /**
@@ -250,13 +282,37 @@ public class ShadowCameraManager {
 
     cameraIdToCharacteristics.remove(cameraId);
     triggerOnCameraUnavailable(cameraId);
+
+    cameraTorches.remove(cameraId);
+  }
+
+  /** Sets the strength default level of the given cameraId to this shadow. */
+  public void setStrengthDefaultLevel(@NonNull String cameraId, int level) {
+    Preconditions.checkNotNull(cameraId);
+    Preconditions.checkArgument(cameraIdToCharacteristics.containsKey(cameraId));
+
+    TorchInfo torchInfo = cameraTorches.get(cameraId);
+    Preconditions.checkArgument(level > 0 && level <= torchInfo.strengthMaxLevel);
+
+    torchInfo.strengthDefaultLevel = level;
+  }
+
+  /** Sets the strength max level of the given cameraId to this shadow. */
+  public void setStrengthMaxLevel(@NonNull String cameraId, int level) {
+    Preconditions.checkNotNull(cameraId);
+    Preconditions.checkArgument(cameraIdToCharacteristics.containsKey(cameraId));
+
+    TorchInfo torchInfo = cameraTorches.get(cameraId);
+    Preconditions.checkArgument(level > 0 && level >= torchInfo.strengthDefaultLevel);
+
+    torchInfo.strengthMaxLevel = level;
   }
 
   /** Returns what the supplied camera's torch is set to. */
   public boolean getTorchMode(@NonNull String cameraId) {
     Preconditions.checkNotNull(cameraId);
     Preconditions.checkArgument(cameraIdToCharacteristics.keySet().contains(cameraId));
-    Boolean torchState = cameraTorches.get(cameraId);
+    Boolean torchState = cameraTorches.get(cameraId).enabled;
     return torchState;
   }
 

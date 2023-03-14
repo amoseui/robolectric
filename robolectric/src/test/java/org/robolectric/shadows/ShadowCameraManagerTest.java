@@ -157,12 +157,8 @@ public class ShadowCameraManagerTest {
   @Test
   @Config(minSdk = VERSION_CODES.M)
   public void testGetTorchModeCameraTorchModeNotSet() {
-    try {
-      shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
-      shadowOf(cameraManager).getTorchMode(CAMERA_ID_0);
-    } catch (NullPointerException e) {
-      // Expected
-    }
+    shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
+    assertThat(shadowOf(cameraManager).getTorchMode(CAMERA_ID_0)).isNotEqualTo(ENABLE);
   }
 
   @Test
@@ -171,6 +167,58 @@ public class ShadowCameraManagerTest {
     shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
     cameraManager.setTorchMode(CAMERA_ID_0, ENABLE);
     assertThat(shadowOf(cameraManager).getTorchMode(CAMERA_ID_0)).isEqualTo(ENABLE);
+  }
+
+  @Test
+  @Config(minSdk = VERSION_CODES.TIRAMISU)
+  public void testTurnOnTorchWithStrengthLevelNotSet() throws CameraAccessException {
+    shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
+    assertThat(shadowOf(cameraManager).getTorchMode(CAMERA_ID_0)).isNotEqualTo(ENABLE);
+    assertThat(shadowOf(cameraManager).getTorchModeStrengthLevel(CAMERA_ID_0)).isEqualTo(1);
+  }
+
+  @Test
+  @Config(minSdk = VERSION_CODES.TIRAMISU)
+  public void testTurnOnTorchWithStrengthLevel() throws CameraAccessException {
+    shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
+    cameraManager.turnOnTorchWithStrengthLevel(CAMERA_ID_0, 1);
+    assertThat(shadowOf(cameraManager).getTorchMode(CAMERA_ID_0)).isEqualTo(ENABLE);
+    assertThat(shadowOf(cameraManager).getTorchModeStrengthLevel(CAMERA_ID_0)).isEqualTo(1);
+  }
+
+  @Test
+  @Config(minSdk = VERSION_CODES.TIRAMISU)
+  public void testTurnOnTorchWithStrengthLevelInRange() throws CameraAccessException {
+    shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
+    shadowOf(cameraManager).setStrengthMaxLevel(CAMERA_ID_0, 3);
+    cameraManager.turnOnTorchWithStrengthLevel(CAMERA_ID_0, 2);
+    assertThat(shadowOf(cameraManager).getTorchMode(CAMERA_ID_0)).isEqualTo(ENABLE);
+    assertThat(shadowOf(cameraManager).getTorchModeStrengthLevel(CAMERA_ID_0)).isEqualTo(2);
+  }
+
+  @Test
+  @Config(minSdk = VERSION_CODES.TIRAMISU)
+  public void testTurnOnTorchWithStrengthLevelInvalidLevel() throws CameraAccessException {
+    shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
+    try {
+      cameraManager.turnOnTorchWithStrengthLevel(CAMERA_ID_0, 0);
+      fail();
+    } catch (IllegalArgumentException e) {
+      // Expected
+    }
+  }
+
+  @Test
+  @Config(minSdk = VERSION_CODES.TIRAMISU)
+  public void testTurnOnTorchWithStrengthLevelGreaterThanMaxLevel() throws CameraAccessException {
+    shadowOf(cameraManager).addCamera(CAMERA_ID_0, characteristics);
+    shadowOf(cameraManager).setStrengthMaxLevel(CAMERA_ID_0, 3);
+    try {
+      cameraManager.turnOnTorchWithStrengthLevel(CAMERA_ID_0, 5);
+      fail();
+    } catch (IllegalArgumentException e) {
+      // Expected
+    }
   }
 
   @Test
